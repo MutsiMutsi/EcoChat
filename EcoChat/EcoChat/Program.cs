@@ -50,6 +50,17 @@ namespace EcoChat
 		static void Main(string[] args)
 		{
 			market = MongoService.GetMarket();
+			Market newMarket = new Market();
+			foreach (var marketPrice in newMarket.DefaultResourcePrices)
+			{
+				if (!market.DefaultResourcePrices.ContainsKey(marketPrice.Key))
+				{
+					market.DefaultResourcePrices.Add(marketPrice.Key, marketPrice.Value);
+					market.ResourceBalance.Add(marketPrice.Key, 0);
+				}
+				else
+					market.DefaultResourcePrices[marketPrice.Key] = marketPrice.Value;
+			}
 
 			var cc = GetAllCompanies();
 			foreach (var c in cc)
@@ -397,6 +408,149 @@ namespace EcoChat
 					{
 						string companyName = msg.Remove(0, "$found ".Length);
 						reply = foundCompany(e.Message.From.Id, companyName);
+					}
+					else if (cmd.StartsWith("contracts"))
+					{
+						updateUsernames(e.Message.Chat.Id);
+						Player p = GetPlayer(e.Message.From.Id);
+						Dictionary<Guid, Contract> outgoing = market.Contracts.Where(o => o.Value.Sender == e.Message.From.Id).ToDictionary(item => item.Key, item => item.Value);
+						Dictionary<Guid, Contract> incoming = market.Contracts.Where(o => o.Value.Receiver == e.Message.From.Id).ToDictionary(item => item.Key, item => item.Value);
+						StringBuilder sb = new StringBuilder();
+
+						sb.AppendLine("*Outgoing Offers*");
+						foreach (Contract c in outgoing.Values)
+						{
+							string receiverName = GetUsername(c.Receiver, e.Message.Chat.Id);
+							sb.AppendLine($@"`({c.ID.ToString().Substring(0, 3)})`{c.Amount} {c.Resource} for `{c.Price}` total `{c.Total}` to {receiverName}");
+						}
+						sb.AppendLine("*Incoming Requests*");
+						foreach (Contract c in incoming.Values)
+						{
+							string senderName = GetUsername(c.Sender, e.Message.Chat.Id);
+							sb.AppendLine($@"`({c.ID.ToString().Substring(0, 3)})`{c.Amount} {c.Resource} for `{c.Price}` total `{c.Total}` from {senderName}");
+						}
+						reply = sb.ToString();
+					}
+					else if (cmd.StartsWith("cancel"))
+					{
+						string[] split = cmd.Split(null);
+						string id = split[1];
+
+						Contract c = market.Contracts.FirstOrDefault(o => o.Value.Sender == e.Message.From.Id && o.Key.ToString().StartsWith(id)).Value;
+						Player pSender = GetPlayer(c.Sender);
+						Company cSender = GetUserCompanies(c.Sender).FirstOrDefault();
+
+						if (cSender.Warehouse.ContainsKey(c.Resource))
+						{
+							cSender.Warehouse[c.Resource] += c.Amount;
+						}
+						else
+						{
+							cSender.Warehouse.Add(c.Resource, c.Amount);
+						}
+						reply = $"Contract cancelled";
+						SavePlayer(pSender);
+						SaveCompany(cSender);
+						market.Contracts.Remove(c.ID);
+					}
+					else if (cmd.StartsWith("reject"))
+					{
+						string[] split = cmd.Split(null);
+						string id = split[1];
+
+						Contract c = market.Contracts.FirstOrDefault(o => o.Value.Receiver == e.Message.From.Id && o.Key.ToString().StartsWith(id)).Value;
+						Player pSender = GetPlayer(c.Sender);
+						Company cSender = GetUserCompanies(c.Sender).FirstOrDefault();
+
+						if (cSender.Warehouse.ContainsKey(c.Resource))
+						{
+							cSender.Warehouse[c.Resource] += c.Amount;
+						}
+						else
+						{
+							cSender.Warehouse.Add(c.Resource, c.Amount);
+						}
+						reply = $"Contract rejected";
+						SavePlayer(pSender);
+						SaveCompany(cSender);
+						market.Contracts.Remove(c.ID);
+					}
+					else if (cmd.StartsWith("accept"))
+					{
+						string[] split = cmd.Split(null);
+						string id = split[1];
+
+						Contract c = market.Contracts.FirstOrDefault(o => o.Value.Receiver == e.Message.From.Id && o.Key.ToString().StartsWith(id)).Value;
+						Player pSender = GetPlayer(c.Sender);
+						Player pReceiver = GetPlayer(c.Receiver);
+						Company cReceiver = GetUserCompanies(c.Receiver).FirstOrDefault();
+
+						pSender.Money += c.Total;
+						pReceiver.Money -= c.Total;
+						if (cReceiver.Warehouse.ContainsKey(c.Resource))
+						{
+							cReceiver.Warehouse[c.Resource] += c.Amount;
+						}
+						else
+						{
+							cReceiver.Warehouse.Add(c.Resource, c.Amount);
+						}
+						SavePlayer(pSender);
+						SavePlayer(pReceiver);
+						SaveCompany(cReceiver);
+						market.Contracts.Remove(c.ID);
+						reply = $"Contract accepted, received `{c.Amount}` {c.Resource}";
+					}
+					else if (cmd.StartsWith("offer"))
+					{
+						Player p = GetPlayer(e.Message.From.Id);
+						Company c = GetUserCompanies(e.Message.From.Id).FirstOrDefault();
+						string[] split = cmd.Split(null);
+						string[] oSplit = msg.Substring(1, msg.Length - 1).Split(null);
+
+						try
+						{
+							string toUsername = oSplit[1];
+							string resString = split[2];
+							resString = char.ToUpper(resString[0]) + resString.Substring(1);
+							Resource res = (Resource)Enum.Parse(typeof(Resource), resString);
+							decimal amount = decimal.Parse(split[3]);
+							decimal price = decimal.Parse(split[4]);
+
+							if (!c.Warehouse.ContainsKey(res) || c.Warehouse[res] < amount)
+							{
+								reply = $"Not enough {res} to offer";
+							}
+							else
+							{
+								updateUsernames(e.Message.Chat.Id);
+								int toUser = usernames[toUsername.Replace("@", "")];
+
+
+
+								Contract newContract = new Contract
+								{
+									Amount = amount,
+									Length = 1,
+									ID = Guid.NewGuid(),
+									Price = price,
+									Receiver = toUser,
+									Resource = res,
+									Sender = e.Message.From.Id
+								};
+
+								c.Warehouse[res] -= amount;
+
+								market.Contracts.Add(newContract.ID, newContract);
+								reply = $@"Contract created - {newContract.Amount} {newContract.Resource} for `{newContract.Price}` total `{newContract.Total}`";
+								SaveCompany(c);
+							}
+						}
+						catch (Exception)
+						{
+
+							throw;
+						}
 					}
 					else if (cmd == "warehouse")
 					{
