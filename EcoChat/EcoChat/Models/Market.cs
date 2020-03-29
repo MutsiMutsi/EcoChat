@@ -16,6 +16,8 @@ namespace EcoChat.Models
 		public Dictionary<Resource, decimal> DefaultResourcePrices = new Dictionary<Resource, decimal>();
 		[BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
 		public Dictionary<Resource, decimal> ResourceBalance = new Dictionary<Resource, decimal>();
+		[BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
+		public Dictionary<Guid, Contract> Contracts = new Dictionary<Guid, Contract>();
 
 		public Market()
 		{
@@ -37,7 +39,7 @@ namespace EcoChat.Models
 			DefaultResourcePrices.Add(Resource.Chicken, 75);
 			DefaultResourcePrices.Add(Resource.Eggs, 5);
 			DefaultResourcePrices.Add(Resource.Wheat, 3);
-			DefaultResourcePrices.Add(Resource.Apples, 11);
+			DefaultResourcePrices.Add(Resource.Apples, 12);
 			DefaultResourcePrices.Add(Resource.Bananas, 15);
 			DefaultResourcePrices.Add(Resource.Pears, 10);
 

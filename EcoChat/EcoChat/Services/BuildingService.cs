@@ -326,7 +326,7 @@ namespace EcoChat.Services
 						Input = new ResourceCollection
 						{
 							{Resource.Seeds, 25},
-							{Resource.Water, 250},
+							{Resource.Water, 200},
 						},
 						Output = new ResourceCollection
 						{
@@ -354,7 +354,7 @@ namespace EcoChat.Services
 						Input = new ResourceCollection
 						{
 							{Resource.Seeds, 25},
-							{Resource.Water, 200},
+							{Resource.Water, 150},
 						},
 						Output = new ResourceCollection
 						{
